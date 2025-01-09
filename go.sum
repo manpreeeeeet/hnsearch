@@ -1,0 +1,6 @@
+github.com/bbalet/stopwords v1.0.0 h1:0TnGycCtY0zZi4ltKoOGRFIlZHv0WqpoIGUsObjztfo=
+github.com/bbalet/stopwords v1.0.0/go.mod h1:sAWrQoDMfqARGIn4s6dp7OW7ISrshUD8IP2q3KoqPjc=
+github.com/reiver/go-porterstemmer v1.0.1 h1:WyERBkASXgoXrTwq/IQ6wyNj/YG7j/ZURvTuMCoud5w=
+github.com/reiver/go-porterstemmer v1.0.1/go.mod h1:Z8uL/f/7UEwaeAJNwx1sO8kbqXiEuQieNuD735hLrSU=
+golang.org/x/text v0.21.0 h1:zyQAAkrwaneQ066sspRyJaG9VNi/YJ1NfzcGB3hZ/qo=
+golang.org/x/text v0.21.0/go.mod h1:4IBbMaMmOPCJ8SecivzSH54+73PCFmPWxNTLm+vZkEQ=
