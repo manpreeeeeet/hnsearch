@@ -66,3 +66,15 @@ func (doc *Document) toDocumentModel() *DocumentModel {
 		Comments: comments,
 	}
 }
+
+func (doc *DocumentModel) toDocument() Document {
+	comments := make([]Comment, 0)
+	for _, comment := range doc.Comments {
+		comments = append(comments, Comment{Text: comment.Text})
+	}
+	return Document{
+		Id:       doc.ID,
+		Story:    Story{Title: doc.Title},
+		Comments: comments,
+	}
+}
