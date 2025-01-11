@@ -40,12 +40,12 @@ type Comment struct {
 }
 
 type Document struct {
-	Id       int
+	Id       uint
 	Story    Story
 	Comments []Comment
 }
 
-func fetchItem(id int, wg *sync.WaitGroup, ch chan<- interface{}) {
+func fetchItem(id uint, wg *sync.WaitGroup, ch chan<- interface{}) {
 	defer wg.Done()
 	url := fmt.Sprintf("%s/item/%d.json", baseURL, id)
 
@@ -102,7 +102,7 @@ func fetchItem(id int, wg *sync.WaitGroup, ch chan<- interface{}) {
 	}
 }
 
-func fetchStory(id int) (*Document, error) {
+func fetchStory(id uint) (*Document, error) {
 	var storyWaitGroup sync.WaitGroup
 	ch := make(chan interface{})
 	storyWaitGroup.Add(1)
@@ -126,7 +126,7 @@ func fetchStory(id int) (*Document, error) {
 		for _, kid := range v.Kids {
 			commentWaitGroup.Add(1)
 			go func() {
-				fetchItem(kid, commentWaitGroup, commentChannel)
+				fetchItem(uint(kid), commentWaitGroup, commentChannel)
 			}()
 		}
 
