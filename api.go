@@ -40,9 +40,9 @@ type Comment struct {
 }
 
 type Document struct {
-	Id       uint
-	Story    Story
-	Comments []Comment
+	Id       uint      `json:"id"`
+	Story    Story     `json:"story"`
+	Comments []Comment `json:"comments"`
 }
 
 func fetchItem(id uint, wg *sync.WaitGroup, ch chan<- interface{}) {

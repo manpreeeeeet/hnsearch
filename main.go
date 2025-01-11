@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -20,6 +21,10 @@ func main() {
 	index, _ := loadTokensToMap(db)
 
 	r := gin.Default()
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"http://localhost:5174"}
+	r.Use(cors.New(config))
+
 	r.GET("/search", func(c *gin.Context) {
 		query := c.Query("q")
 		documentModels := index.searchQuery(db, query)
@@ -27,9 +32,7 @@ func main() {
 		for _, documentModel := range documentModels {
 			documents = append(documents, documentModel.toDocument())
 		}
-		c.JSON(200, gin.H{
-			"documents": documents,
-		})
+		c.JSON(200, documents)
 	})
 
 	go func() {
