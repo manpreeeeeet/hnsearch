@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"github.com/bbalet/stopwords"
 	"testing"
 )
 
@@ -28,4 +30,10 @@ func TestLemming(t *testing.T) {
 		}
 	}
 
+}
+
+func TestParsing(t *testing.T) {
+	uncleanText := "I would like to suggest, as a hypothetical, that well funded companies (you know who) are promoting this AI &quot;danger&quot; as a way to cajole federal legislation to come out they can &quot;help with&quot;.<p>It is the fear of every U.S. company to have to deal with 50 different state&#x27;s legislation (see guns, porn, abortion, alcohol, gambling, prostitution, etc. that all vary state by state) because it&#x27;s more expensive to have to bend to every little state&#x27;s ideas of how to protect their citizens.<p>They want a single point at which they can lobby (and lobby <i>hard</i> with <i>lots of money</i>) to get the lax, self-dealing laws with lots of legal protection they so desperately know will provide them with super-profits.<p>Of course, I could be wrong. Maybe Skynet is just around the corner."
+	stop := stopwords.CleanString(uncleanText, "en", true)
+	fmt.Printf("stop %v", stop)
 }

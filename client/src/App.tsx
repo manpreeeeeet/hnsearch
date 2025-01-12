@@ -1,18 +1,31 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { search, SearchResult } from "./api.ts";
+import Highlighter from "react-highlight-words";
 
 function App() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [query, setQuery] = useState("");
+  const [queryTokens, setQueryTokens] = useState<string[]>([]);
 
   useEffect(() => {
+    setQueryTokens(
+      query.split(/(\s+)/).filter(function (e) {
+        return e.trim().length > 0;
+      }),
+    );
+  }, [query]);
+
+  const searchClick = () => {
     search(query).then((data) => {
       if (data) {
-        console.log("search results: ", data);
         setSearchResults(data);
       }
     });
-  }, [query]);
+  };
+
+  const regexSearchWords = queryTokens.map(
+    (word) => new RegExp(`\\b${word}\\b`, "gi"),
+  );
 
   return (
     <>
@@ -24,12 +37,32 @@ function App() {
             className="h-[2rem] p-2"
             onInput={(event) => setQuery(event.target.value)}
           />
+          <button onClick={searchClick}>search</button>
         </div>
-        <div className="bg-[#F6F6EF] h-full">
+        <div className="bg-[#F6F6EF] min-h-full p-2">
           <div>
             {searchResults.map((searchResult) => {
               return (
-                <div key={searchResult.id}>{searchResult.story.title}</div>
+                <div>
+                  <div className="text-base my-4" key={searchResult.id}>
+                    <Highlighter
+                      searchWords={regexSearchWords}
+                      textToHighlight={searchResult.story.title}
+                    />
+                  </div>
+                  {searchResult.comments.map((comment) => {
+                    return (
+                      <>
+                        <div className="text-sm border border-slate-700 mt-2 p-2">
+                          <Highlighter
+                            searchWords={regexSearchWords}
+                            textToHighlight={comment.text}
+                          />
+                        </div>
+                      </>
+                    );
+                  })}
+                </div>
               );
             })}
           </div>

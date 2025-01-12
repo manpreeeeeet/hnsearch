@@ -2,7 +2,10 @@ package main
 
 import (
 	"github.com/bbalet/stopwords"
+	strip "github.com/grokify/html-strip-tags-go"
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/reiver/go-porterstemmer"
+	html2 "html"
 	"strings"
 )
 
@@ -21,6 +24,13 @@ func processText(text string, stem bool) []string {
 	return tokens
 }
 
+func safeRemoveHtml(text string) string {
+	p := bluemonday.UGCPolicy()
+	html := p.Sanitize(text)
+	stripped := strip.StripTags(html)
+	return html2.UnescapeString(stripped)
+}
+
 func (index Index) add(doc *Document) {
 	titleTokens := processText(doc.Story.Title, true)
 	for _, token := range titleTokens {
@@ -35,13 +45,17 @@ func (index Index) add(doc *Document) {
 	}
 }
 
-func (doc *Document) getTokens() []string {
-	tokens := processText(doc.Story.Title, true)
+func (doc *Document) getTokens() (tokens map[string]int) {
+	tokens = make(map[string]int)
+	titleTokens := processText(doc.Story.Title, true)
+	for _, token := range titleTokens {
+		tokens[token] = tokens[token] + 1
+	}
 
 	for _, comment := range doc.Comments {
 		commentTokens := processText(comment.Text, true)
 		for _, token := range commentTokens {
-			tokens = append(tokens, token)
+			tokens[token] = tokens[token] + 1
 		}
 	}
 	return tokens

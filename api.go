@@ -34,9 +34,10 @@ type Story struct {
 
 type Comment struct {
 	Item
-	Parent int    `json:"parent"`
-	Text   string `json:"text"`
-	Kids   []int  `json:"kids"`
+	Parent   int       `json:"parent"`
+	Text     string    `json:"text"`
+	Kids     []int     `json:"kids"`
+	Comments []Comment `json:"comments"`
 }
 
 type Document struct {
@@ -125,9 +126,7 @@ func fetchStory(id uint) (*Document, error) {
 		commentWaitGroup := &sync.WaitGroup{}
 		for _, kid := range v.Kids {
 			commentWaitGroup.Add(1)
-			go func() {
-				fetchItem(uint(kid), commentWaitGroup, commentChannel)
-			}()
+			go fetchCommentTree(uint(kid), commentWaitGroup, commentChannel)
 		}
 
 		go func() {
@@ -147,4 +146,60 @@ func fetchStory(id uint) (*Document, error) {
 	default:
 		return nil, fmt.Errorf("id: %d is not a story\n", id)
 	}
+}
+
+func fetchCommentTree(id uint, wg *sync.WaitGroup, ch chan<- interface{}) {
+	defer wg.Done()
+
+	// Fetch the current comment
+	var commentWG sync.WaitGroup
+	commentCh := make(chan interface{})
+	commentWG.Add(1)
+	go fetchItem(id, &commentWG, commentCh)
+
+	go func() {
+		commentWG.Wait()
+		close(commentCh)
+	}()
+
+	// Get the comment result
+	result := <-commentCh
+	comment, ok := result.(Comment)
+	if !ok {
+		if _, isErr := result.(error); isErr {
+			fmt.Printf("error fetching comment:%d", id)
+		}
+		return
+	}
+
+	// If the comment has children, fetch them recursively
+	if len(comment.Kids) > 0 {
+		childrenChannel := make(chan interface{})
+		childrenWG := &sync.WaitGroup{}
+
+		// Start fetching all child comments
+		for _, kid := range comment.Kids {
+			childrenWG.Add(1)
+			go fetchCommentTree(uint(kid), childrenWG, childrenChannel)
+		}
+
+		// Wait for all children to be fetched
+		go func() {
+			childrenWG.Wait()
+			close(childrenChannel)
+		}()
+
+		// Collect all child comments
+		comment.Comments = make([]Comment, 0, len(comment.Kids))
+		for childResult := range childrenChannel {
+			if childComment, ok := childResult.(Comment); ok {
+				comment.Comments = append(comment.Comments, childComment)
+			} else if err, ok := childResult.(error); ok {
+				fmt.Printf("Error fetching child comment: %v\n", err)
+			}
+		}
+	}
+
+	// Send the complete comment with all its children
+	ch <- comment
 }
