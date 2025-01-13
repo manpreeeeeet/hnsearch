@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"math"
 )
 
 type DBCreds struct {
@@ -33,6 +34,7 @@ type TokenModel struct {
 type DocumentModel struct {
 	gorm.Model
 	ID       uint
+	Score    int
 	Title    string
 	Tokens   []TokenModel `gorm:"many2many:document_token_frequency_models;joinForeignKey:document_id;joinReferences:token_id"`
 	Comments []CommentModel
@@ -86,6 +88,7 @@ func (doc *Document) toDocumentModel() *DocumentModel {
 		ID:       doc.Id,
 		Title:    safeRemoveHtml(doc.Story.Title),
 		Comments: comments,
+		Score:    doc.Story.Score,
 	}
 }
 
@@ -170,21 +173,38 @@ func getTokenModel(db *gorm.DB, token string) *TokenModel {
 	return &tokenModel
 }
 
-func getTokenFrequency(db *gorm.DB, docID uint, tokenID uint) int64 {
-	var frequencyRecord DocumentTokenFrequencyModel
-	err := db.Where("token_id = ? AND document_id = ?", tokenID, docID).First(&frequencyRecord).Error
-	if err != nil {
-		return 0
-	}
-	return int64(frequencyRecord.Frequency)
-}
-
 func getInverseDocumentFrequency(db *gorm.DB, tokenID uint) int64 {
+	var totalDocs int64
+	db.Model(&DocumentModel{}).Count(&totalDocs)
+
 	var docFreq int64
 	err := db.Model(&DocumentTokenFrequencyModel{}).Where("token_id = ?", tokenID).Count(&docFreq).Error
 	if err != nil {
 		//log.Fatalf("Error getting document frequency for token %d: %v", tokenID, err)
 		return 0
 	}
-	return docFreq
+	return int64(math.Log(float64(totalDocs) / float64(docFreq)))
+}
+
+func getNormalizedTokenFrequency(db *gorm.DB, docID uint, tokenID uint) float64 {
+	var totalTokens int
+	var tokenFreq int
+
+	db.Table("document_token_frequency_models").
+		Where("document_id = ? AND token_id = ?", docID, tokenID).
+		Select("frequency").
+		Row().
+		Scan(&tokenFreq)
+
+	db.Table("document_token_frequency_models").
+		Where("document_id = ?", docID).
+		Select("SUM(frequency)").
+		Row().
+		Scan(&totalTokens)
+
+	if totalTokens == 0 {
+		return 0
+	}
+
+	return float64(tokenFreq) / float64(totalTokens)
 }

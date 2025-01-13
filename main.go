@@ -40,7 +40,8 @@ func main() {
 	})
 
 	go func() {
-		for i := uint(42663753); i > 42660000; i-- {
+		return
+		for i := uint(42679435); i > 42660000; i-- {
 			var documentModel DocumentModel
 			err = db.First(&documentModel, i).Error
 			if err == nil {

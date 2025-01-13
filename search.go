@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"gorm.io/gorm"
 	"sort"
 )
@@ -29,12 +28,21 @@ func (index Index) searchDocuments(db *gorm.DB, tokens []string) []DocumentModel
 		if err != nil {
 			continue
 		}
-		var comments []CommentModel
-		err = db.Model(&documentModel).Association("Comments").Find(&comments)
+
+		// Get all relevant comments in a single query
+		var relevantComments []CommentModel
+		err = db.Distinct("comment_models.*").
+			Table("comment_models").
+			Joins("JOIN comment_token_frequency_models ctf ON ctf.comment_id = comment_models.id").
+			Joins("JOIN token_models tm ON tm.id = ctf.token_id").
+			Where("tm.token IN ? AND ctf.document_id = ?", tokens, documentId).
+			Find(&relevantComments).Error
+
 		if err != nil {
-			fmt.Printf("oooo watttt no comments????")
+			continue
 		}
-		documentModel.Comments = comments
+
+		documentModel.Comments = relevantComments
 		documents = append(documents, documentModel)
 	}
 
@@ -46,7 +54,7 @@ func rankDocuments(db *gorm.DB, tokens []string, docs []DocumentModel) []Documen
 	// find frequency of tokens in each document
 	// ivf (how rare this thing is) -> count(id) where token = ?
 	tokenFreqWeight := 0.1
-	inverseFreqWeight := 0.2
+	inverseFreqWeight := 0.4
 
 	inverseTokenFreq := map[string]int64{}
 	docScore := map[uint]float64{}
@@ -59,8 +67,8 @@ func rankDocuments(db *gorm.DB, tokens []string, docs []DocumentModel) []Documen
 
 		inverseTokenFreq[token] = getInverseDocumentFrequency(db, tokenModel.ID)
 		for _, doc := range docs {
-			tokenFreq := getTokenFrequency(db, doc.ID, tokenModel.ID)
-			docScore[doc.ID] += (tokenFreqWeight * float64(tokenFreq)) + (inverseFreqWeight * float64(inverseTokenFreq[token]))
+			tokenFreq := getNormalizedTokenFrequency(db, doc.ID, tokenModel.ID)
+			docScore[doc.ID] += (tokenFreqWeight * tokenFreq) * (inverseFreqWeight * float64(inverseTokenFreq[token]))
 		}
 	}
 
