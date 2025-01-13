@@ -17,7 +17,7 @@ func main() {
 	if err != nil {
 		fmt.Printf("ooo husbant there is an error now we are homeress %s\n", err)
 	}
-	err = db.AutoMigrate(&TokenModel{}, &DocumentModel{}, &CommentModel{}, &DocumentTokenFrequencyModel{})
+	err = db.AutoMigrate(&TokenModel{}, &DocumentModel{}, &CommentModel{}, &DocumentTokenFrequencyModel{}, &CommentTokenFrequencyModel{})
 	if err != nil {
 		panic("Failed to migrate database")
 	}
@@ -40,9 +40,7 @@ func main() {
 	})
 
 	go func() {
-		return
 		for i := uint(42663753); i > 42660000; i-- {
-
 			var documentModel DocumentModel
 			err = db.First(&documentModel, i).Error
 			if err == nil {

@@ -40,8 +40,16 @@ type DocumentModel struct {
 
 type CommentModel struct {
 	gorm.Model
+	ID              uint
 	Text            string
 	DocumentModelID uint
+}
+
+type CommentTokenFrequencyModel struct {
+	TokenID    uint `gorm:"primaryKey"`
+	CommentID  uint `gorm:"primaryKey"`
+	DocumentID uint `gorm:"primaryKey"`
+	Frequency  int
 }
 
 type DocumentTokenFrequencyModel struct {
@@ -72,7 +80,7 @@ func loadTokensToIndex(db *gorm.DB) (Index, error) {
 func (doc *Document) toDocumentModel() *DocumentModel {
 	comments := make([]CommentModel, 0)
 	for _, comment := range doc.Comments {
-		comments = append(comments, CommentModel{DocumentModelID: doc.Id, Text: safeRemoveHtml(comment.Text)})
+		comments = append(comments, CommentModel{ID: comment.ID, DocumentModelID: doc.Id, Text: safeRemoveHtml(comment.Text)})
 	}
 	return &DocumentModel{
 		ID:       doc.Id,
@@ -98,17 +106,14 @@ func addDocumentToDbIndex(db *gorm.DB, doc *Document) error {
 	db.Create(&documentModel)
 
 	tokens := doc.getTokens()
-	tokensModel, err := addTokensWithFrequency(db, doc.Id, tokens)
+	_, err := addTokensWithFrequency(db, doc.Id, tokens)
 	if err != nil {
 		return err
 	}
-
-	documentModel.Tokens = tokensModel
-	if err := db.Save(documentModel).Error; err != nil {
-		fmt.Printf("failed to associate terms with document: %s", err)
+	_, err = addCommentTokensWithFrequency(db, documentModel)
+	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -127,6 +132,31 @@ func addTokensWithFrequency(db *gorm.DB, docID uint, tokens map[string]int) (tok
 			return nil, err
 		}
 		tokensModel = append(tokensModel, tokenModel)
+	}
+	return tokensModel, nil
+}
+
+func addCommentTokensWithFrequency(db *gorm.DB, doc DocumentModel) (tokensModel []TokenModel, err error) {
+
+	for _, commentModel := range doc.Comments {
+		tokens := commentModel.getCommentsTokens()
+
+		for token, freq := range tokens {
+			tokenModel := TokenModel{Token: token}
+			if err := db.Where("token = ?", token).FirstOrCreate(&tokenModel).Error; err != nil {
+				return nil, err
+			}
+
+			if err := db.Create(&CommentTokenFrequencyModel{
+				TokenID:    tokenModel.ID,
+				CommentID:  commentModel.ID,
+				DocumentID: doc.ID,
+				Frequency:  freq,
+			}).Error; err != nil {
+				return nil, err
+			}
+			tokensModel = append(tokensModel, tokenModel)
+		}
 	}
 	return tokensModel, nil
 }

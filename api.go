@@ -18,7 +18,7 @@ const (
 )
 
 type Item struct {
-	ID   int      `json:"id"`
+	ID   uint     `json:"id"`
 	Type ItemType `json:"type"`
 	By   string   `json:"by"`
 	Time int64    `json:"time"`

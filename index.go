@@ -60,3 +60,13 @@ func (doc *Document) getTokens() (tokens map[string]int) {
 	}
 	return tokens
 }
+
+func (comment *CommentModel) getCommentsTokens() (tokens map[string]int) {
+	tokens = make(map[string]int)
+	commentTokens := processText(comment.Text, true)
+	for _, token := range commentTokens {
+		tokens[token] = tokens[token] + 1
+	}
+
+	return tokens
+}
