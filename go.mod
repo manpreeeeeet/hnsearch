@@ -7,6 +7,7 @@ require (
 	github.com/gin-contrib/cors v1.7.3
 	github.com/gin-gonic/gin v1.10.0
 	github.com/grokify/html-strip-tags-go v0.1.0
+	github.com/joho/godotenv v1.5.1
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/reiver/go-porterstemmer v1.0.1
 	gorm.io/driver/postgres v1.5.11

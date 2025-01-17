@@ -5,18 +5,49 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: "testdb"
-      POSTGRES_USER: "testuser"
-      POSTGRES_PASSWORD: "testpassword"
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d testdb -u testuser"]
+      test: ["CMD-SHELL", "pg_isready -d ${DB_NAME} -u ${DB_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
     restart: unless-stopped
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+    ports:
+      - "8081:8081"
+    volumes:
+      - frontend:/app/frontend
+    environment:
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      GIN_MODE: "release"
+      START_INDEX: ${START_INDEX}
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    depends_on:
+      - app
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - frontend:/usr/share/nginx/html:ro  # Serve React build files
+    ports:
+      - "8080:80"  # Nginx serves frontend and proxies backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  frontend:

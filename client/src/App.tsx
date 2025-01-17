@@ -35,6 +35,11 @@ function App() {
             type={"text"}
             className="h-[2rem] w-[60%] p-2"
             onInput={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                searchClick();
+              }
+            }}
           />
           <button onClick={searchClick} className="border-2 h-[2rem] py-1 px-4">
             Search
