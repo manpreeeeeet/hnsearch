@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"strconv"
 	"sync"
 )
 
@@ -18,10 +20,12 @@ const (
 )
 
 type Item struct {
-	ID   uint     `json:"id"`
-	Type ItemType `json:"type"`
-	By   string   `json:"by"`
-	Time int64    `json:"time"`
+	ID      uint     `json:"id"`
+	Type    ItemType `json:"type"`
+	By      string   `json:"by"`
+	Time    int64    `json:"time"`
+	Deleted bool     `json:"deleted"`
+	Dead    bool     `json:"dead"`
 }
 
 type Story struct {
@@ -29,14 +33,14 @@ type Story struct {
 	Title string `json:"title"`
 	URL   string `json:"url"`
 	Score int    `json:"score"`
-	Kids  []int  `json:"kids"`
+	Kids  []uint `json:"kids"`
 }
 
 type Comment struct {
 	Item
 	Parent   int       `json:"parent"`
 	Text     string    `json:"text"`
-	Kids     []int     `json:"kids"`
+	Kids     []uint    `json:"kids"`
 	Comments []Comment `json:"comments"`
 }
 
@@ -44,6 +48,26 @@ type Document struct {
 	Id       uint      `json:"id"`
 	Story    Story     `json:"story"`
 	Comments []Comment `json:"comments"`
+}
+
+func fetchLatest() (int, error) {
+	url := fmt.Sprintf("%s/maxitem.json", baseURL)
+	resp, err := http.Get(url)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	id, err := strconv.Atoi(string(body))
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 func fetchItem(id uint, wg *sync.WaitGroup, ch chan<- interface{}) {
@@ -105,28 +129,42 @@ func fetchItem(id uint, wg *sync.WaitGroup, ch chan<- interface{}) {
 
 func fetchStory(id uint) (*Document, error) {
 	var storyWaitGroup sync.WaitGroup
-	ch := make(chan interface{})
+	storyChannel := make(chan interface{})
 	storyWaitGroup.Add(1)
-	go fetchItem(id, &storyWaitGroup, ch)
+	go fetchItem(id, &storyWaitGroup, storyChannel)
 	go func() {
 		storyWaitGroup.Wait()
-		close(ch)
+		close(storyChannel)
 	}()
 
-	item := <-ch
+	item := <-storyChannel
 
 	switch v := item.(type) {
 	case Story:
+		if v.Score <= 5 {
+			log.Printf("Debug: ignoring story %d since score <= 1", v.ID)
+			return nil, fmt.Errorf("id: %d score too low\n", id)
+		}
 		doc := Document{
 			Id:       id,
 			Story:    item.(Story),
 			Comments: make([]Comment, 0),
 		}
+		if v.Dead || v.Deleted {
+			log.Printf("Debug: ignoring story comments since story: %d is either dead or deleted.\n", v.ID)
+			return &doc, nil
+		}
+
+		if doc.Story.URL == "" {
+			doc.Story.URL = fmt.Sprintf("https://news.ycombinator.com/item?id=%d", doc.Story.ID)
+		}
+
 		commentChannel := make(chan interface{})
 		commentWaitGroup := &sync.WaitGroup{}
+
 		for _, kid := range v.Kids {
 			commentWaitGroup.Add(1)
-			go fetchCommentTree(uint(kid), commentWaitGroup, commentChannel)
+			go fetchItem(kid, commentWaitGroup, commentChannel)
 		}
 
 		go func() {
@@ -137,8 +175,14 @@ func fetchStory(id uint) (*Document, error) {
 		for result := range commentChannel {
 			comment, ok := result.(Comment)
 			if !ok {
-				fmt.Println("not a comment")
+				log.Printf("%v is not a comment\n", comment)
+				continue
 			}
+			if comment.Deleted || comment.Dead {
+				log.Printf("Debug: ignoring comment: %d since it is either dead or deleted.\n", comment.ID)
+				continue
+			}
+
 			doc.Comments = append(doc.Comments, comment)
 		}
 		return &doc, nil
@@ -146,60 +190,4 @@ func fetchStory(id uint) (*Document, error) {
 	default:
 		return nil, fmt.Errorf("id: %d is not a story\n", id)
 	}
-}
-
-func fetchCommentTree(id uint, wg *sync.WaitGroup, ch chan<- interface{}) {
-	defer wg.Done()
-
-	// Fetch the current comment
-	var commentWG sync.WaitGroup
-	commentCh := make(chan interface{})
-	commentWG.Add(1)
-	go fetchItem(id, &commentWG, commentCh)
-
-	go func() {
-		commentWG.Wait()
-		close(commentCh)
-	}()
-
-	// Get the comment result
-	result := <-commentCh
-	comment, ok := result.(Comment)
-	if !ok {
-		if _, isErr := result.(error); isErr {
-			fmt.Printf("error fetching comment:%d", id)
-		}
-		return
-	}
-
-	// If the comment has children, fetch them recursively
-	if len(comment.Kids) > 0 {
-		childrenChannel := make(chan interface{})
-		childrenWG := &sync.WaitGroup{}
-
-		// Start fetching all child comments
-		for _, kid := range comment.Kids {
-			childrenWG.Add(1)
-			go fetchCommentTree(uint(kid), childrenWG, childrenChannel)
-		}
-
-		// Wait for all children to be fetched
-		go func() {
-			childrenWG.Wait()
-			close(childrenChannel)
-		}()
-
-		// Collect all child comments
-		comment.Comments = make([]Comment, 0, len(comment.Kids))
-		for childResult := range childrenChannel {
-			if childComment, ok := childResult.(Comment); ok {
-				comment.Comments = append(comment.Comments, childComment)
-			} else if err, ok := childResult.(error); ok {
-				fmt.Printf("Error fetching child comment: %v\n", err)
-			}
-		}
-	}
-
-	// Send the complete comment with all its children
-	ch <- comment
 }

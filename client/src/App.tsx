@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { search, SearchResult } from "./api.ts";
 import Highlighter from "react-highlight-words";
 
@@ -13,7 +13,7 @@ function App() {
         return e.trim().length > 0;
       }),
     );
-  }, [query]);
+  }, [searchResults]);
 
   const searchClick = () => {
     search(query).then((data) => {
@@ -31,13 +31,14 @@ function App() {
     <>
       <div className="container mx-auto lg:max-w-screen-lg h-screen">
         <div className="bg-[#FF742B] h-16 flex p-2 gap-2 items-center">
-          <div>Search</div>
           <input
             type={"text"}
-            className="h-[2rem] p-2"
+            className="h-[2rem] w-[60%] p-2"
             onInput={(event) => setQuery(event.target.value)}
           />
-          <button onClick={searchClick}>search</button>
+          <button onClick={searchClick} className="border-2 h-[2rem] py-1 px-4">
+            Search
+          </button>
         </div>
         <div className="bg-[#F6F6EF] min-h-full p-2">
           <div>
@@ -45,10 +46,17 @@ function App() {
               return (
                 <div>
                   <div className="text-base my-4" key={searchResult.id}>
-                    <Highlighter
-                      searchWords={regexSearchWords}
-                      textToHighlight={searchResult.story.title}
-                    />
+                    <div>
+                      <a href={searchResult.story.url}>
+                        <Highlighter
+                          searchWords={regexSearchWords}
+                          textToHighlight={searchResult.story.title}
+                        />
+                      </a>
+                      <div className="text-xs text-gray-600">
+                        {searchResult.story.score} points
+                      </div>
+                    </div>
                   </div>
                   {searchResult.comments.map((comment) => {
                     return (

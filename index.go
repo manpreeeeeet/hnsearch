@@ -1,11 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"github.com/bbalet/stopwords"
 	strip "github.com/grokify/html-strip-tags-go"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/reiver/go-porterstemmer"
+	"gorm.io/gorm"
 	html2 "html"
+	"log"
 	"strings"
 )
 
@@ -69,4 +72,77 @@ func (comment *CommentModel) getCommentsTokens() (tokens map[string]int) {
 	}
 
 	return tokens
+}
+
+func fetchAndIndexDocument(db *gorm.DB, id uint) {
+	var documentModel DocumentModel
+	err := db.First(&documentModel, id).Error
+	if err == nil {
+		log.Printf("Debug: Items with id %d already present in the index\n", id)
+		return
+	}
+
+	doc, err := fetchStory(id)
+	if err != nil {
+		log.Printf("Error: Error %v while fetching item with id.\nError: %v\n", id, err)
+		return
+	}
+	if doc.Story.Dead || doc.Story.Deleted {
+		log.Printf("Debug: ignoring story since story: %d is either dead or deleted.\n", doc.Story.ID)
+		return
+	}
+
+	if err := addDocumentToDbIndex(db, doc); err != nil {
+		log.Printf("Error: Failed to add doc to db index titled: %s.\nError %v\n", doc.Story.Title, err)
+		return
+	}
+}
+
+func resumeHnIndexing(db *gorm.DB, backfill bool, maxDocumentCount int64) {
+
+	var count int64
+	if backfill {
+
+		var maxID sql.NullInt64
+		db.Model(&ResolvedItemModel{}).Select("MAX(id)").Scan(&maxID)
+
+		if !maxID.Valid {
+			id, err := fetchLatest()
+			if err != nil {
+				log.Printf("Error: Failed to find latest index\n")
+				return
+			}
+			maxID.Int64 = int64(id)
+		}
+
+		for i := uint(maxID.Int64); i >= 1; i-- {
+
+			db.Model(&ResolvedItemModel{}).Count(&count)
+			if count >= maxDocumentCount {
+				log.Printf("Info: Finished indexing %d items\n", maxDocumentCount)
+				return
+			}
+
+			fetchAndIndexDocument(db, i)
+		}
+
+	} else {
+
+		var minID sql.NullInt64
+		db.Model(&ResolvedItemModel{}).Select("MIN(id)").Scan(&minID)
+		if !minID.Valid {
+			minID.Int64 = 1
+		}
+
+		for i := uint(minID.Int64); i >= 1; i-- {
+
+			db.Model(&ResolvedItemModel{}).Count(&count)
+			if count >= maxDocumentCount {
+				log.Printf("Info: Finished indexing %d items\n", maxDocumentCount)
+				return
+			}
+
+			fetchAndIndexDocument(db, i)
+		}
+	}
 }

@@ -15,23 +15,21 @@ func main() {
 		Port:     "5432",
 	})
 	if err != nil {
-		fmt.Printf("ooo husbant there is an error now we are homeress %s\n", err)
+		fmt.Printf("error connecting to db%s\n", err)
 	}
-	err = db.AutoMigrate(&TokenModel{}, &DocumentModel{}, &CommentModel{}, &DocumentTokenFrequencyModel{}, &CommentTokenFrequencyModel{})
+	err = db.AutoMigrate(&TokenModel{}, &DocumentModel{}, &CommentModel{}, &DocumentTokenFrequencyModel{}, &CommentTokenFrequencyModel{}, &ResolvedItemModel{})
 	if err != nil {
 		panic("Failed to migrate database")
 	}
 
-	index, _ := loadTokensToIndex(db)
-
 	r := gin.Default()
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:5174"}
+	config.AllowOrigins = []string{"http://localhost:5173"}
 	r.Use(cors.New(config))
 
 	r.GET("/search", func(c *gin.Context) {
 		query := c.Query("q")
-		documentModels := index.searchQuery(db, query)
+		documentModels := searchQuery(db, query)
 		documents := make([]Document, 0)
 		for _, documentModel := range documentModels {
 			documents = append(documents, documentModel.toDocument())
@@ -40,27 +38,8 @@ func main() {
 	})
 
 	go func() {
-		return
-		for i := uint(42679435); i > 42660000; i-- {
-			var documentModel DocumentModel
-			err = db.First(&documentModel, i).Error
-			if err == nil {
-				continue
-			}
-
-			doc, err := fetchStory(i)
-			if err != nil {
-				continue
-			}
-			fmt.Printf("title: %s\n", doc.Story.Title)
-
-			if err := addDocumentToDbIndex(db, doc); err != nil {
-				fmt.Printf("failed to add doc to db index titled: %s\n", doc.Story.Title)
-				continue
-			}
-
-			fmt.Printf("\n\n*******************************************************\n\n")
-		}
+		resumeHnIndexing(db, true, 1000)
 	}()
+
 	r.Run("localhost:8080")
 }
