@@ -16,7 +16,7 @@ export interface Comment {
 
 export const search = async (query: string) => {
   try {
-    const response = await fetch(`http://localhost:8080/search?q=${query}`);
+    const response = await fetch(`/search?q=${query}`);
     const data: SearchResult[] = await response.json();
     return data;
   } catch (error) {
