@@ -63,8 +63,8 @@ type CommentTokenFrequencyModel struct {
 }
 
 type DocumentTokenFrequencyModel struct {
-	TokenID    uint
-	DocumentID uint
+	TokenID    uint `gorm:"primaryKey"`
+	DocumentID uint `gorm:"primaryKey"`
 	Frequency  int
 }
 
