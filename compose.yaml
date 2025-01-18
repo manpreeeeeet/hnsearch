@@ -46,6 +46,8 @@ services:
       - frontend:/usr/share/nginx/html:ro  # Serve React build files
     ports:
       - "8080:80"  # Nginx serves frontend and proxies backend
+    expose:
+      - 8080
     restart: unless-stopped
 
 volumes:
