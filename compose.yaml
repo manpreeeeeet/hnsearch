@@ -3,7 +3,7 @@ services:
     image: postgres:16
     container_name: postgres_db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /mnt/volume_tor1_01/postgresql_data:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -49,5 +49,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data:
   frontend:
