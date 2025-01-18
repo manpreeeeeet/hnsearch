@@ -96,6 +96,7 @@ func fetchAndIndexDocument(db *gorm.DB, id uint) {
 		log.Printf("Error: Failed to add doc to db index titled: %s.\nError %v\n", doc.Story.Title, err)
 		return
 	}
+	log.Printf("successfully index %d\n", id)
 }
 
 func resumeHnIndexing(db *gorm.DB, backfill bool, maxDocumentCount int64) {
@@ -104,7 +105,7 @@ func resumeHnIndexing(db *gorm.DB, backfill bool, maxDocumentCount int64) {
 	if backfill {
 
 		var maxID sql.NullInt64
-		db.Model(&ResolvedItemModel{}).Select("MAX(id)").Scan(&maxID)
+		db.Model(&ResolvedItemModel{}).Select("MIN(id)").Scan(&maxID)
 
 		if !maxID.Valid {
 			id, err := fetchLatest()
@@ -124,17 +125,20 @@ func resumeHnIndexing(db *gorm.DB, backfill bool, maxDocumentCount int64) {
 			}
 
 			fetchAndIndexDocument(db, i)
+			if i%200 == 0 {
+				log.Printf("total items: %d\n", count)
+			}
 		}
 
 	} else {
 
 		var minID sql.NullInt64
-		db.Model(&ResolvedItemModel{}).Select("MIN(id)").Scan(&minID)
+		db.Model(&ResolvedItemModel{}).Select("MAX(id)").Scan(&minID)
 		if !minID.Valid {
 			minID.Int64 = 1
 		}
 
-		for i := uint(minID.Int64); i >= 1; i-- {
+		for i := uint(minID.Int64); i >= 1; i++ {
 
 			db.Model(&ResolvedItemModel{}).Count(&count)
 			if count >= maxDocumentCount {
@@ -143,6 +147,9 @@ func resumeHnIndexing(db *gorm.DB, backfill bool, maxDocumentCount int64) {
 			}
 
 			fetchAndIndexDocument(db, i)
+			if i%200 == 0 {
+				log.Printf("total items: %d\n", count)
+			}
 		}
 	}
 }
