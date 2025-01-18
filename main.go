@@ -7,6 +7,7 @@ import (
 	"github.com/joho/godotenv"
 	"log"
 	"os"
+	"strconv"
 )
 
 func main() {
@@ -53,8 +54,9 @@ func main() {
 	})
 
 	if os.Getenv("START_INDEX") == "true" {
+		maxItem, _ := strconv.Atoi(os.Getenv("MAX_ITEMS"))
 		go func() {
-			resumeHnIndexing(db, true, 1000)
+			resumeHnIndexing(db, true, int64(maxItem))
 		}()
 	}
 	r.Run("0.0.0.0:8081")

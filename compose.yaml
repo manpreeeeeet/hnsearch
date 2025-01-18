@@ -35,6 +35,7 @@ services:
       DB_PORT: ${DB_PORT}
       GIN_MODE: "release"
       START_INDEX: ${START_INDEX}
+      MAX_ITEMS: ${MAX_ITEMS}
 
   nginx:
     image: nginx:alpine
