@@ -198,12 +198,14 @@ func getInverseDocumentFrequencies(db *gorm.DB, tokens []string) (map[string]flo
 	}
 	var tokenCounts []TokenCount
 
+	dtfStart := time.Now()
 	err := db.Model(&DocumentTokenFrequencyModel{}).
 		Select("token_id, token, COUNT(DISTINCT document_id) as doc_freq").
 		Joins("JOIN token_models tm ON tm.id = document_token_frequency_models.token_id").
 		Where("tm.token IN ?", tokens).
 		Group("token_id, tm.token").
 		Scan(&tokenCounts).Error
+	log.Printf("document token freq took %s", time.Since(dtfStart))
 
 	if err != nil {
 		return nil, err
@@ -229,11 +231,13 @@ func getNormalizedTokenFrequencies(db *gorm.DB, docIDs []uint, tokens []string) 
 	}
 	var tokenFreqs []TokenFreq
 
+	dtfModelStart := time.Now()
 	err := db.Table("document_token_frequency_models").
 		Select("document_token_frequency_models.document_id, token_models.token, document_token_frequency_models.frequency").
 		Joins("JOIN token_models ON token_models.id = document_token_frequency_models.token_id").
 		Where("document_id IN ? AND token_models.token IN ?", docIDs, tokens).
 		Scan(&tokenFreqs).Error
+	log.Printf("document token frequency took %s", time.Since(dtfModelStart))
 
 	if err != nil {
 		return nil, err
@@ -246,11 +250,13 @@ func getNormalizedTokenFrequencies(db *gorm.DB, docIDs []uint, tokens []string) 
 	}
 	var docTotals []DocTotal
 
+	documentTotalStart := time.Now()
 	err = db.Table("document_token_frequency_models").
 		Select("document_id, SUM(frequency) as total_tokens").
 		Where("document_id IN ?", docIDs).
 		Group("document_id").
 		Scan(&docTotals).Error
+	log.Printf("documentTotalStart took %s", time.Since(documentTotalStart))
 
 	if err != nil {
 		return nil, err
