@@ -34,7 +34,7 @@ func main() {
 		fmt.Printf("error connecting to db%s\n", err)
 	}
 	err = db.AutoMigrate(&TokenModel{}, &DocumentModel{}, &CommentModel{}, &DocumentTokenFrequencyModel{}, &CommentTokenFrequencyModel{}, &ResolvedItemModel{})
-
+	MigrateToTokenPrimaryKey(db)
 	//query := db.Model(&DocumentTokenFrequencyModel{}).Select("document_id, SUM(frequency) as total_tokens").Group("document_id")
 	//err = db.Migrator().CreateView("document_token_counts_view", gorm.ViewOption{Query: query})
 	//if err != nil {

@@ -22,7 +22,7 @@ func searchDocuments(db *gorm.DB, tokens []string) []DocumentModel {
 		Joins("JOIN token_models tm ON tm.token IN ?", tokens).
 		Joins("INNER JOIN document_token_frequency_models dtf ON dtf.document_id = document_models.id AND dtf.token_id = tm.id").
 		Preload("Comments", func(db *gorm.DB) *gorm.DB {
-			return db.
+			return db.Debug().
 				Distinct().
 				Joins("JOIN comment_token_frequency_models ctf ON ctf.comment_id = comment_models.id").
 				Joins("JOIN token_models tm ON tm.id = ctf.token_id").

@@ -33,9 +33,8 @@ type ResolvedItemModel struct {
 }
 
 type TokenModel struct {
-	gorm.Model
-	Token     string          `gorm:"index"`
-	Documents []DocumentModel `gorm:"many2many:document_token_frequency_models;joinForeignKey:token_id;joinReferences:document_id"`
+	Token     string          `gorm:"primaryKey"`
+	Documents []DocumentModel `gorm:"many2many:document_token_frequency_models;joinForeignKey:token;joinReferences:document_id"`
 }
 
 type DocumentModel struct {
@@ -44,7 +43,7 @@ type DocumentModel struct {
 	URL      string
 	Score    int
 	Title    string
-	Tokens   []TokenModel `gorm:"many2many:document_token_frequency_models;joinForeignKey:document_id;joinReferences:token_id"`
+	Tokens   []TokenModel `gorm:"many2many:document_token_frequency_models;joinForeignKey:document_id;joinReferences:token"`
 	Comments []CommentModel
 }
 
@@ -56,15 +55,15 @@ type CommentModel struct {
 }
 
 type CommentTokenFrequencyModel struct {
-	TokenID    uint `gorm:"primaryKey"`
-	CommentID  uint `gorm:"primaryKey"`
-	DocumentID uint `gorm:"primaryKey"`
+	Token      string `gorm:"primaryKey"`
+	CommentID  uint   `gorm:"primaryKey"`
+	DocumentID uint   `gorm:"primaryKey"`
 	Frequency  int
 }
 
 type DocumentTokenFrequencyModel struct {
-	TokenID    uint `gorm:"primaryKey"`
-	DocumentID uint `gorm:"primaryKey"`
+	Token      string `gorm:"primaryKey"`
+	DocumentID uint   `gorm:"primaryKey"`
 	Frequency  int
 }
 
@@ -157,7 +156,7 @@ func addTokensWithFrequency(db *gorm.DB, docID uint, tokens map[string]int) (tok
 		}
 
 		if err := db.Create(&DocumentTokenFrequencyModel{
-			TokenID:    tokenModel.ID,
+			Token:      token,
 			DocumentID: docID,
 			Frequency:  freq,
 		}).Error; err != nil {
@@ -180,7 +179,7 @@ func addCommentTokensWithFrequency(db *gorm.DB, doc DocumentModel) (tokensModel 
 			}
 
 			if err := db.Create(&CommentTokenFrequencyModel{
-				TokenID:    tokenModel.ID,
+				Token:      token,
 				CommentID:  commentModel.ID,
 				DocumentID: doc.ID,
 				Frequency:  freq,
@@ -288,4 +287,94 @@ func getNormalizedTokenFrequencies(db *gorm.DB, docIDs []uint, tokens []string) 
 	}
 
 	return result, nil
+}
+
+func MigrateToTokenPrimaryKey(db *gorm.DB) error {
+	// Step 1: Create new tables with token as primary key
+	err := db.AutoMigrate(
+		&TokenModel{},
+		&DocumentModel{},
+		&CommentModel{},
+		&DocumentTokenFrequencyModel{},
+		&CommentTokenFrequencyModel{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create new tables: %v", err)
+	}
+
+	// Step 2: Create temporary tables for migration
+	err = db.Exec(`
+        CREATE TABLE temp_document_token_frequency AS
+        SELECT 
+            tm.token,
+            dtf.document_id,
+            dtf.frequency
+        FROM document_token_frequency_models dtf
+        JOIN token_models tm ON tm.id = dtf.token_id;
+
+        CREATE TABLE temp_comment_token_frequency AS
+        SELECT 
+            tm.token,
+            ctf.comment_id,
+            ctf.document_id,
+            ctf.frequency
+        FROM comment_token_frequency_models ctf
+        JOIN token_models tm ON tm.id = ctf.token_id;
+    `).Error
+	if err != nil {
+		return fmt.Errorf("failed to create temp tables: %v", err)
+	}
+
+	// Step 3: Drop old tables and constraints
+	err = db.Exec(`
+        DROP TABLE IF EXISTS document_token_frequency_models;
+        DROP TABLE IF EXISTS comment_token_frequency_models;
+        DROP TABLE IF EXISTS token_models CASCADE;
+    `).Error
+	if err != nil {
+		return fmt.Errorf("failed to drop old tables: %v", err)
+	}
+
+	err = db.AutoMigrate(
+		&TokenModel{},
+		&DocumentModel{},
+		&CommentModel{},
+		&DocumentTokenFrequencyModel{},
+		&CommentTokenFrequencyModel{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create new tables: %v", err)
+	}
+
+	// Step 4: Migrate data from temporary tables to new tables
+	err = db.Exec(`
+        INSERT INTO token_models (token, created_at, updated_at)
+        SELECT DISTINCT token, NOW(), NOW()
+        FROM temp_document_token_frequency;
+
+        INSERT INTO document_token_frequency_models (token, document_id, frequency)
+        SELECT token, document_id, frequency
+        FROM temp_document_token_frequency;
+
+        INSERT INTO comment_token_frequency_models (token, comment_id, document_id, frequency)
+        SELECT token, comment_id, document_id, frequency
+        FROM temp_comment_token_frequency;
+
+        DROP TABLE temp_document_token_frequency;
+        DROP TABLE temp_comment_token_frequency;
+    `).Error
+	if err != nil {
+		return fmt.Errorf("failed to migrate data: %v", err)
+	}
+
+	// Step 5: Create necessary indexes
+	err = db.Exec(`
+        CREATE INDEX idx_document_token_freq ON document_token_frequency_models(token, document_id);
+        CREATE INDEX idx_comment_token_freq ON comment_token_frequency_models(token, comment_id, document_id);
+    `).Error
+	if err != nil {
+		return fmt.Errorf("failed to create indexes: %v", err)
+	}
+
+	return nil
 }
