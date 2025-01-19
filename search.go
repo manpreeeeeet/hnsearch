@@ -19,13 +19,12 @@ func searchDocuments(db *gorm.DB, tokens []string) []DocumentModel {
 
 	var documents []DocumentModel
 	err := db.Debug().Model(&DocumentModel{}).
-		Joins("JOIN token_models tm ON tm.token IN ?", tokens).
-		Joins("INNER JOIN document_token_frequency_models dtf ON dtf.document_id = document_models.id AND dtf.token_id = tm.id").
+		Joins("INNER JOIN document_token_frequency_models dtf ON dtf.document_id = document_models.id AND dtf.token IN ?", tokens).
 		Preload("Comments", func(db *gorm.DB) *gorm.DB {
 			return db.Debug().
 				Distinct().
 				Joins("JOIN comment_token_frequency_models ctf ON ctf.comment_id = comment_models.id").
-				Joins("JOIN token_models tm ON tm.id = ctf.token_id").
+				Joins("JOIN token_models tm ON tm.token = ctf.token").
 				Where("tm.token IN ? AND ctf.document_id = comment_models.document_model_id", tokens)
 		}).
 		Find(&documents).Error //err = db.

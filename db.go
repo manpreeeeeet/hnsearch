@@ -201,17 +201,15 @@ func getInverseDocumentFrequencies(db *gorm.DB, tokens []string) (map[string]flo
 
 	type TokenCount struct {
 		Token   string
-		TokenID uint
 		DocFreq int64
 	}
 	var tokenCounts []TokenCount
 
 	dtfStart := time.Now()
 	err := db.Model(&DocumentTokenFrequencyModel{}).
-		Select("token_id, token, COUNT(DISTINCT document_id) as doc_freq").
-		Joins("JOIN token_models tm ON tm.id = document_token_frequency_models.token_id").
-		Where("tm.token IN ?", tokens).
-		Group("token_id, tm.token").
+		Select("token, COUNT(DISTINCT document_id) as doc_freq").
+		Where("token IN ?", tokens).
+		Group("token").
 		Scan(&tokenCounts).Error
 	log.Printf("document token freq took %s", time.Since(dtfStart))
 
@@ -241,9 +239,8 @@ func getNormalizedTokenFrequencies(db *gorm.DB, docIDs []uint, tokens []string) 
 
 	dtfModelStart := time.Now()
 	err := db.Debug().Table("document_token_frequency_models").
-		Select("document_token_frequency_models.document_id, token_models.token, document_token_frequency_models.frequency").
-		Joins("INNER JOIN token_models ON token_models.id = document_token_frequency_models.token_id").
-		Where("document_id IN ? AND token_models.token IN ?", docIDs, tokens).
+		Select("document_token_frequency_models.document_id, document_token_frequency_models.token, document_token_frequency_models.frequency").
+		Where("document_id IN ? AND token IN ?", docIDs, tokens).
 		Scan(&tokenFreqs).Error
 	log.Printf("document token frequency took %s", time.Since(dtfModelStart))
 
@@ -287,94 +284,4 @@ func getNormalizedTokenFrequencies(db *gorm.DB, docIDs []uint, tokens []string) 
 	}
 
 	return result, nil
-}
-
-func MigrateToTokenPrimaryKey(db *gorm.DB) error {
-	// Step 1: Create new tables with token as primary key
-	err := db.AutoMigrate(
-		&TokenModel{},
-		&DocumentModel{},
-		&CommentModel{},
-		&DocumentTokenFrequencyModel{},
-		&CommentTokenFrequencyModel{},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create new tables: %v", err)
-	}
-
-	// Step 2: Create temporary tables for migration
-	err = db.Exec(`
-        CREATE TABLE temp_document_token_frequency AS
-        SELECT 
-            tm.token,
-            dtf.document_id,
-            dtf.frequency
-        FROM document_token_frequency_models dtf
-        JOIN token_models tm ON tm.id = dtf.token_id;
-
-        CREATE TABLE temp_comment_token_frequency AS
-        SELECT 
-            tm.token,
-            ctf.comment_id,
-            ctf.document_id,
-            ctf.frequency
-        FROM comment_token_frequency_models ctf
-        JOIN token_models tm ON tm.id = ctf.token_id;
-    `).Error
-	if err != nil {
-		return fmt.Errorf("failed to create temp tables: %v", err)
-	}
-
-	// Step 3: Drop old tables and constraints
-	err = db.Exec(`
-        DROP TABLE IF EXISTS document_token_frequency_models;
-        DROP TABLE IF EXISTS comment_token_frequency_models;
-        DROP TABLE IF EXISTS token_models CASCADE;
-    `).Error
-	if err != nil {
-		return fmt.Errorf("failed to drop old tables: %v", err)
-	}
-
-	err = db.AutoMigrate(
-		&TokenModel{},
-		&DocumentModel{},
-		&CommentModel{},
-		&DocumentTokenFrequencyModel{},
-		&CommentTokenFrequencyModel{},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create new tables: %v", err)
-	}
-
-	// Step 4: Migrate data from temporary tables to new tables
-	err = db.Exec(`
-        INSERT INTO token_models (token, created_at, updated_at)
-        SELECT DISTINCT token, NOW(), NOW()
-        FROM temp_document_token_frequency;
-
-        INSERT INTO document_token_frequency_models (token, document_id, frequency)
-        SELECT token, document_id, frequency
-        FROM temp_document_token_frequency;
-
-        INSERT INTO comment_token_frequency_models (token, comment_id, document_id, frequency)
-        SELECT token, comment_id, document_id, frequency
-        FROM temp_comment_token_frequency;
-
-        DROP TABLE temp_document_token_frequency;
-        DROP TABLE temp_comment_token_frequency;
-    `).Error
-	if err != nil {
-		return fmt.Errorf("failed to migrate data: %v", err)
-	}
-
-	// Step 5: Create necessary indexes
-	err = db.Exec(`
-        CREATE INDEX idx_document_token_freq ON document_token_frequency_models(token, document_id);
-        CREATE INDEX idx_comment_token_freq ON comment_token_frequency_models(token, comment_id, document_id);
-    `).Error
-	if err != nil {
-		return fmt.Errorf("failed to create indexes: %v", err)
-	}
-
-	return nil
 }
