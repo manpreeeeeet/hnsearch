@@ -68,6 +68,15 @@ type DocumentTokenFrequencyModel struct {
 	Frequency  int
 }
 
+type DocumentTokenCount struct {
+	DocumentID  uint `gorm:"primaryKey"`
+	TotalTokens int
+}
+
+func (DocumentTokenCount) TableName() string {
+	return "document_token_counts_view"
+}
+
 func loadTokensToIndex(db *gorm.DB) (Index, error) {
 	tokenToDocs := make(map[string][]uint)
 
@@ -232,9 +241,9 @@ func getNormalizedTokenFrequencies(db *gorm.DB, docIDs []uint, tokens []string) 
 	var tokenFreqs []TokenFreq
 
 	dtfModelStart := time.Now()
-	err := db.Table("document_token_frequency_models").
+	err := db.Debug().Table("document_token_frequency_models").
 		Select("document_token_frequency_models.document_id, token_models.token, document_token_frequency_models.frequency").
-		Joins("JOIN token_models ON token_models.id = document_token_frequency_models.token_id").
+		Joins("INNER JOIN token_models ON token_models.id = document_token_frequency_models.token_id").
 		Where("document_id IN ? AND token_models.token IN ?", docIDs, tokens).
 		Scan(&tokenFreqs).Error
 	log.Printf("document token frequency took %s", time.Since(dtfModelStart))
@@ -251,7 +260,8 @@ func getNormalizedTokenFrequencies(db *gorm.DB, docIDs []uint, tokens []string) 
 	var docTotals []DocTotal
 
 	documentTotalStart := time.Now()
-	err = db.Table("document_token_frequency_models").
+	//err = db.Debug().Model(&DocTotal{}).Where("document_id")
+	err = db.Debug().Table("document_token_frequency_models").
 		Select("document_id, SUM(frequency) as total_tokens").
 		Where("document_id IN ?", docIDs).
 		Group("document_id").
