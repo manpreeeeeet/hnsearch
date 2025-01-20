@@ -228,7 +228,7 @@ func getInverseDocumentFrequencies(db *gorm.DB, tokens []string) (map[string]flo
 	return idfs, nil
 }
 
-func getNormalizedTokenFrequencies(db *gorm.DB, docIDs []uint, tokens []string) (map[uint]map[string]float64, error) {
+func getNormalizedTokenFrequencies(db *gorm.DB, tokens []string, docTotals []DocumentTokenCount) (map[uint]map[string]float64, error) {
 
 	type TokenFreq struct {
 		DocumentID uint
@@ -240,7 +240,7 @@ func getNormalizedTokenFrequencies(db *gorm.DB, docIDs []uint, tokens []string) 
 	dtfModelStart := time.Now()
 	err := db.Debug().Table("document_token_frequency_models").
 		Select("document_token_frequency_models.document_id, document_token_frequency_models.token, document_token_frequency_models.frequency").
-		Where("document_id IN ? AND token IN ?", docIDs, tokens).
+		Where("token IN ?", tokens).
 		Scan(&tokenFreqs).Error
 	log.Printf("document token frequency took %s", time.Since(dtfModelStart))
 
@@ -249,24 +249,16 @@ func getNormalizedTokenFrequencies(db *gorm.DB, docIDs []uint, tokens []string) 
 	}
 
 	// Get total frequencies per document in one query
-	type DocTotal struct {
-		DocumentID  uint
-		TotalTokens int
-	}
-	var docTotals []DocTotal
 
-	documentTotalStart := time.Now()
-	//err = db.Debug().Model(&DocTotal{}).Where("document_id")
-	err = db.Debug().Table("document_token_frequency_models").
-		Select("document_id, SUM(frequency) as total_tokens").
-		Where("document_id IN ?", docIDs).
-		Group("document_id").
-		Scan(&docTotals).Error
-	log.Printf("documentTotalStart took %s", time.Since(documentTotalStart))
-
-	if err != nil {
-		return nil, err
-	}
+	//var docTotals []DocumentTokenCount
+	//documentTotalStart := time.Now()
+	//err = db.Debug().Find(&docTotals).Error
+	//err = db.Debug().Table("document_token_frequency_models").
+	//	Select("document_id, SUM(frequency) as total_tokens").
+	//	Where("tokens IN ?", tokens).
+	//	Group("document_id").
+	//	Scan(&docTotals).Error
+	//log.Printf("documentTotalStart took %s", time.Since(documentTotalStart))
 
 	totalTokensMap := make(map[uint]int)
 	for _, dt := range docTotals {
