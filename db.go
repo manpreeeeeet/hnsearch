@@ -51,7 +51,7 @@ type CommentModel struct {
 	gorm.Model
 	ID              uint
 	Text            string
-	DocumentModelID uint
+	DocumentModelID uint `gorm:"index"`
 }
 
 type CommentTokenFrequencyModel struct {
