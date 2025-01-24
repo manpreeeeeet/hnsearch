@@ -55,14 +55,14 @@ type CommentModel struct {
 }
 
 type CommentTokenFrequencyModel struct {
-	Token      string `gorm:"primaryKey"`
-	CommentID  uint   `gorm:"primaryKey"`
-	DocumentID uint   `gorm:"primaryKey"`
+	Token      string `gorm:"primaryKey;index"`
+	CommentID  uint   `gorm:"primaryKey;index"`
+	DocumentID uint   `gorm:"primaryKey;index"`
 	Frequency  int
 }
 
 type DocumentTokenFrequencyModel struct {
-	Token      string `gorm:"primaryKey"`
+	Token      string `gorm:"primaryKey;index"`
 	DocumentID uint   `gorm:"primaryKey"`
 	Frequency  int
 }
