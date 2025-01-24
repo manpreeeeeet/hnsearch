@@ -22,8 +22,10 @@ func searchDocuments(db *gorm.DB, docIds []uint, tokens []string) []DocumentMode
 		Where("id IN ?", docIds).
 		Preload("Comments", func(db *gorm.DB) *gorm.DB {
 			return db.Debug().
+				Distinct().
 				Where("comment_models.document_model_id IN ?", docIds).
-				Where("EXISTS (SELECT 1 FROM comment_token_frequency_models ctf WHERE ctf.comment_id = comment_models.id AND ctf.token IN ? AND ctf.document_id = comment_models.document_model_id)", tokens)
+				Joins("INNER JOIN comment_token_frequency_models ctf ON ctf.comment_id = comment_models.id").
+				Where("ctf.token IN ? AND ctf.document_id = comment_models.document_model_id", tokens)
 		}).
 		Find(&documents).Error //err = db.
 
