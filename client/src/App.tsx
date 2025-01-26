@@ -12,6 +12,9 @@ ZZZzz /,\`.-'\`'    -.  ;-;;,_
      |,4-  ) )-,_. , (  \`'-'
     '---''(_/--'  \`-'\\_)  Search for something`;
 
+const escapeRegExp = (string: string) =>
+  string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 function App() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [query, setQuery] = useState("");
@@ -38,7 +41,7 @@ function App() {
   };
 
   const regexSearchWords = queryTokens.map(
-    (word) => new RegExp(`\\b${word}\\b`, "gi"),
+    (word) => new RegExp(`\\b${escapeRegExp(word)}\\b`, "gi"),
   );
 
   return (
